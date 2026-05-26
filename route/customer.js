@@ -53,14 +53,22 @@ web.get("/restaurant/:id", async (req, res) => {
     try {
         const { id } = req.params
         const [result] = await db.query("SELECT * FROM restaurant WHERE restaurant_id = ?", [id])
+        const [menu2] = await db.query("SELECT * FROM menus WHERE restaurant_id = ?", [id])
         delete result[0].restaurant_id
         delete result[0].admin_id
         if (result.length === 0) {
             return res.status(404).json({ error: "Restaurant not found" })
         }
-        res.json(result)
+        res.json({ restaurant: result[0], menu: menu2 })
     } catch (error) {
         res.status(500).json({ error: error.message })
+    }
+});
+web.get("/cart", async (req, res) => {
+    try {
+        
+    } catch (error) {
+        
     }
 });
 
