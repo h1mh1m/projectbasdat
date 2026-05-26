@@ -1,66 +1,67 @@
 import express from "express";
 import makankuy from "../DB/db.js";
 
-const customer = express.Router()
+const web = express.Router()
 const db = makankuy.db;
-customer.get("/customer/profile/:customerId", async (req, res) => {
-    const customer_id = req.params.customerId
+
+web.get("/", async (req, res) => {
     try {
-        const [rows, field] = await db.query("SELECT nama,email,nomor_telepon,total_poin FROM customer WHERE customer_id = ?", [customer_id])
-        res.status(200).json(rows)
+        const [restaurants] = await db.query("SELECT * FROM restaurant")
+        res.json(restaurants)
+
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching profile",
-            error: error.message
-        });
+        res.status(500).json({ error: error.message })
     }
-})
-customer.get("/customer/history/:customerId", async (req, res) => {
-    const { customerId } = req.params.customerId
+});
+
+web.post("/", async (req, res) => {
     try {
-        const [rows, field] = await db.query("SELECT * FROM order_history WHERE customer_id = ?", [customerId])
-        res.status(200).json(rows)
+        const { nama_restoran} = req.body
+        const [result] = await db.query("SELECT * FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [nama_restoran, nama_restoran])
+        res.json(result).status(200)
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching order history",
-            error: error.message
-        });
+        res.status(500).json({ error: error.message })
     }
-})
-customer.get("/customer/order", async (req, res) => {
+});
+web.get("/restaurant", async (req, res)=> {
     try {
-        const [rows, field] = await db.query("SELECT * FROM restaurants")
-        res.status(200).json(rows)
+        const {categori} = req.query
+        let querySql = "SELECT * FROM restaurant"
+        let queryParams = []
+        if (categori && categori !== 'Semua'){
+            querySql += " WHERE kategori = ?"
+            queryParams.push(categori)
+        } 
+        const [restaurants] = await db.query(querySql, queryParams)
+        res.json(restaurants)
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching restaurants",
-            error: error.message
-        });
+        res.status(500).json({ error: error.message })
     }
-})    
-customer.get("/customer/order/:restaurantId", async (req, res) => {
-    const restaurant_id = req.params.restaurantId
+});
+web.post("/restaurant", async (req, res) => {
     try {
-        const [rows, field] = await db.query("SELECT * FROM menus WHERE restaurant_id = ?", [restaurant_id])
-        res.status(200).json(rows)
+        const {pencarian} = req.body
+        const [result] = await db.query("SELECT * FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [pencarian, pencarian])
+        const [id_res] = await db.query("SELECT restaurant_id FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [pencarian, pencarian])
+        res.json(result).status(200)
+        res.redirect(`/restaurant/${id_res[0].restaurant_id}`)
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching menu",
-            error: error.message
-        })
+        res.status(500).json({ error: error.message })
     }
-})
-customer.get("/customer/order/:restaurantId/:menuId", async (req, res) => {
-    const { restaurantId, menuId } = req.params
+});
+web.get("/restaurant/:id", async (req, res) => {
     try {
-        const [rows, field] = await db.query("SELECT * FROM menus WHERE restaurant_id = ? AND menu_id = ?", [restaurantId, menuId])
-        res.status(200).json(rows)
+        const { id } = req.params
+        const [result] = await db.query("SELECT * FROM restaurant WHERE restaurant_id = ?", [id])
+        delete result[0].restaurant_id
+        delete result[0].admin_id
+        if (result.length === 0) {
+            return res.status(404).json({ error: "Restaurant not found" })
+        }
+        res.json(result)
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching menu details",
-            error: error.message
-        })
+        res.status(500).json({ error: error.message })
     }
-})
-customer.post("")
-export default customer;
+});
+
+export default web;
