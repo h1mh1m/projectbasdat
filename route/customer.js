@@ -7,7 +7,17 @@ const db = makankuy.db;
 web.get("/", async (req, res) => {
     try {
         const [restaurants] = await db.query("SELECT * FROM restaurant")
-        res.json(restaurants)
+        restaurants.forEach(restaurant => {
+            delete restaurant.restaurant_id
+            delete restaurant.admin_id
+        })
+        const [categories] = await db.query("SELECT * FROM menus WHERE stok < (SELECT AVG(stok) FROM menus)")
+        categories.forEach(category => {
+            delete category.menu_id
+            delete category.restaurant_id
+            delete category.stok
+        })
+        res.json({ restaurants, categories })
 
     } catch (error) {
         res.status(500).json({ error: error.message })
@@ -16,8 +26,15 @@ web.get("/", async (req, res) => {
 
 web.post("/", async (req, res) => {
     try {
-        const { nama_restoran} = req.body
-        const [result] = await db.query("SELECT * FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [nama_restoran, nama_restoran])
+        const { restoranId } = req.body
+        const [resultRestoran] = await db.query("SELECT * FROM restaurants WHERE restaurant_id = ?",[restoranId])
+        delete resultRestoran[0].admin_id
+        const [resultMenu] = await db.query("SELECT * FROM menus WHERE nama_restoran= ? OR kategori = ?", [restoranId])
+        resultMenu.forEach(menu=>{
+            delete resultMenu.admin_id
+            delete resultMenu.restaurant_id
+            delete resultMenu.stok
+        })
         res.json(result).status(200)
     } catch (error) {
         res.status(500).json({ error: error.message })
@@ -64,11 +81,65 @@ web.get("/restaurant/:id", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.get("/cart", async (req, res) => {
+web.post("/restaurant/:id", async (req, res) => {
     try {
-        
+        const {menu, jumlah, harga} = req.body
+        let total_harga = jumlah * harga
+        const itemToOrders = 
+        {
+
+        }
+        res.json({ message: "Item added to cart successfully" }).status(200)
     } catch (error) {
-        
+        res.status(500).json({ error: error.message })
+    }
+});
+web.get("/cart/:idUser", async (req, res) => {
+    try {
+        const { idUser } = req.params
+        const [orderedcart_items] = await db.query("SELECT * FROM orders WHERE customer_id = ? AND status = 'Pending'", [idUser])
+        orderedcart_items.forEach(item => {
+            delete item.order_id
+            delete item.customer_id
+            delete item.restaurant_id
+            delete item.menu_id
+        })
+        res.json(orderedcart_items)
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+web.post("/cart/:idUser", async (req, res) => {
+    try {
+        const { idUser } = req.params
+        const { order_id } = req.body
+        await db.query("UPDATE orders SET status = 'Dalam Proses' WHERE order_id = ? AND customer_id = ?", [order_id, idUser])
+        res.json({ message: "Order confirmed successfully" }).status(200)
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+web.get("/dashboard/:idUser", async (req, res) => {
+    try {
+        const { idUser } = req.params
+        const [rewards] = await db.query("SELECT * FROM rewards WHERE stok > 0")
+        const [profile] = await db.query("SELECT * FROM customer WHERE customer_id = ?", [idUser])
+        const [history] = await db.query('SELECT * FROM orders WHERE customer_id = ? ORDER BY tanggal_pesanan DESC LIMIT 5', [idUser])
+        delete profile[0].customer_id
+        delete profile[0].password
+        rewards.forEach(reward => {
+            delete reward.reward_id
+        })
+        history.forEach(order => {
+            delete order.order_id
+            delete order.customer_id
+            delete order.restaurant_id
+            delete order.driver_id
+        });
+        res.json({ profile: profile[0], rewards: rewards, history: history })
+    } catch (error) {
+        res.status(500).json({ error: error.message })
     }
 });
 
