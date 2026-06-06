@@ -1,47 +1,91 @@
 import express from "express";
 import makankuy from "../DB/db.js";
+import jwt from "jsonwebtoken";
+import { is } from "zod/locales";
 
 const web = express.Router()
 const db = makankuy.db;
+web.use(express.json());
 
-web.get("/", async (req, res) => {
+web.post("/signup", async (req, res) => {
     try {
-        const [restaurants] = await db.query("SELECT * FROM restaurant")
-        restaurants.forEach(restaurant => {
-            delete restaurant.restaurant_id
-            delete restaurant.admin_id
-        })
-        const [categories] = await db.query("SELECT * FROM menus WHERE stok < (SELECT AVG(stok) FROM menus)")
-        categories.forEach(category => {
-            delete category.menu_id
-            delete category.restaurant_id
-            delete category.stok
-        })
-        res.json({ restaurants, categories })
-
+        const {nama, email, password,nomor} = req.body
+        if(!nama || !email || !password || !nomor){
+            return res.status(400).json({ error: "field are required" })
+        }
+        const [existingUser] = await db.query("SELECT email FROM customer WHERE email = ?", [email])
+        if (existingUser.length > 0) {
+            return res.status(409).json({ error: "Email already exists" })
+        }
+        const [result] = await db.query("INSERT INTO customer (nama, email, password, nomor_telepon) VALUES (?, ?, ?, ?)", [nama, email, password, nomor])
+        res.json({ message: "Signup successful", customer_id: result.insertId }).status(201)
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+web.get("/signup", async (req, res) => {});
+web.get("/login", async (req, res) => {});
+web.post("/login",async (req, res) =>{
+    try {
+        const { email, password } = req.body
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email and password are required" })
+        }
+        const [user] = await db.query("SELECT * FROM customer WHERE email = ?", [email])
+        if (user.length === 0 || user[0].password !== password) {
+            return res.status(401).json({ error: "Invalid email or password" })
+        }
+        const token = jwt.sign({ customer_id: user[0].customer_id }, "secretkey", { expiresIn: "1h" })
+        res.json({ message: "Login successful", token }).status(200)
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+function authorizationToken(req, res, next) {
+    const authHeader = req.headers.authorization
+    if (!authHeader) {
+        return res.status(401).json({ error: "Authorization header missing" })
+    }
+    const token = authHeader.split(" ")[1]
+    jwt.verify(token, "secretkey", (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: "Invalid token" })
+        }
+        req.user = user
+        next()
+    })
+}
+web.get("/",authorizationToken, async (req, res) => {
+    try {
+        const {restoranResult} = await db.query("SELECT * FROM restaurant")
+        res.json({
+            message: "Welcome to the customer dashboard",
+            restoran: restoranResult
+        }).status(200)
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
 });
 
-web.post("/", async (req, res) => {
+// web.post("/", async (req, res) => {
+//     try {
+//         const { restoranId } = req.body
+//         const [resultRestoran] = await db.query("SELECT * FROM restaurants WHERE restaurant_id = ?",[restoranId])
+//         delete resultRestoran[0].admin_id
+//         const [resultMenu] = await db.query("SELECT * FROM menus WHERE nama_restoran= ? OR kategori = ?", [restoranId])
+//         resultMenu.forEach(menu=>{
+//             delete resultMenu.admin_id
+//             delete resultMenu.restaurant_id
+//             delete resultMenu.stok
+//         })
+//         res.json(result).status(200)
+//     } catch (error) {
+//         res.status(500).json({ error: error.message })
+//     }
+// });
+web.get("/restaurant", authorizationToken, async (req, res)=> {
     try {
-        const { restoranId } = req.body
-        const [resultRestoran] = await db.query("SELECT * FROM restaurants WHERE restaurant_id = ?",[restoranId])
-        delete resultRestoran[0].admin_id
-        const [resultMenu] = await db.query("SELECT * FROM menus WHERE nama_restoran= ? OR kategori = ?", [restoranId])
-        resultMenu.forEach(menu=>{
-            delete resultMenu.admin_id
-            delete resultMenu.restaurant_id
-            delete resultMenu.stok
-        })
-        res.json(result).status(200)
-    } catch (error) {
-        res.status(500).json({ error: error.message })
-    }
-});
-web.get("/restaurant", async (req, res)=> {
-    try {
+        if(isLoggedIn){
         const {categori} = req.query
         let querySql = "SELECT * FROM restaurant"
         let queryParams = []
@@ -50,12 +94,13 @@ web.get("/restaurant", async (req, res)=> {
             queryParams.push(categori)
         } 
         const [restaurants] = await db.query(querySql, queryParams)
-        res.json(restaurants)
+        res.json(restaurants)}
+
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
 });
-web.post("/restaurant", async (req, res) => {
+web.post("/restaurant", authorizationToken, async (req, res) => {
     try {
         const {pencarian} = req.body
         const [result] = await db.query("SELECT * FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [pencarian, pencarian])
@@ -66,7 +111,7 @@ web.post("/restaurant", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.get("/restaurant/:id", async (req, res) => {
+web.get("/restaurant/:id", authorizationToken, async (req, res) => {
     try {
         const { id } = req.params
         const [result] = await db.query("SELECT * FROM restaurant WHERE restaurant_id = ?", [id])
@@ -81,7 +126,7 @@ web.get("/restaurant/:id", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.post("/restaurant/:id", async (req, res) => {
+web.post("/restaurant/:id", authorizationToken, async (req, res) => {
     try {
         const {menu, jumlah, harga} = req.body
         let total_harga = jumlah * harga
@@ -109,7 +154,7 @@ web.get("/cart/:idUser", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.post("/cart/:idUser", async (req, res) => {
+web.post("/:idUser/cart", async (req, res) => {
     try {
         const { idUser } = req.params
         const { order_id } = req.body
@@ -120,7 +165,7 @@ web.post("/cart/:idUser", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.get("/dashboard/:idUser", async (req, res) => {
+web.get("/:idUser/dashboard", async (req, res) => {
     try {
         const { idUser } = req.params
         const [rewards] = await db.query("SELECT * FROM rewards WHERE stok > 0")
