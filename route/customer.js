@@ -23,8 +23,8 @@ web.post("/signup", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.get("/signup", async (req, res) => {});
-web.get("/login", async (req, res) => {});
+// web.get("/signup", async (req, res) => {});
+// web.get("/login", async (req, res) => {});
 web.post("/login",async (req, res) =>{
     try {
         const { email, password } = req.body
@@ -55,7 +55,7 @@ function authorizationToken(req, res, next) {
         next()
     })
 }
-web.get("/",authorizationToken, async (req, res) => {
+web.get("/", async (req, res) => {
     try {
         const {restoranResult} = await db.query("SELECT * FROM restaurant")
         res.json({
@@ -106,7 +106,6 @@ web.post("/restaurant", authorizationToken, async (req, res) => {
         const [result] = await db.query("SELECT * FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [pencarian, pencarian])
         const [id_res] = await db.query("SELECT restaurant_id FROM restaurant WHERE nama_restaurant= ? OR kategori = ?", [pencarian, pencarian])
         res.json(result).status(200)
-        res.redirect(`/restaurant/${id_res[0].restaurant_id}`)
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
@@ -126,37 +125,73 @@ web.get("/restaurant/:id", authorizationToken, async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
+// web.post("/restaurant/:id", authorizationToken, async (req, res) => {
+//     try {
+//         const {menu, jumlah, harga} = req.body
+//         let total_harga = jumlah * harga
+//         const itemToOrders = 
+//         {
+//             customer_id: req.user.customer_id,
+//             restaurant_id: req.params.id,
+//             menu_id: menu,
+//             jumlah: jumlah,
+//             total_harga: total_harga,
+//             status: "Pending"
+//         }
+//         await db.query("INSERT INTO orders (customer_id, restaurant_id, menu_id, order_item.jumlah, total_harga, status) VALUES (?, ?, ?, ?, ?, ?)", [itemToOrders.customer_id, itemToOrders.restaurant_id, itemToOrders.menu_id, itemToOrders.jumlah, itemToOrders.total_harga, itemToOrders.status])
+//         res.json({ message: "Item added to cart successfully" }).status(200)
+//     } catch (error) {
+//         res.status(500).json({ error: error.message })
+//     }
+// });
 web.post("/restaurant/:id", authorizationToken, async (req, res) => {
-    try {
-        const {menu, jumlah, harga} = req.body
-        let total_harga = jumlah * harga
-        const itemToOrders = 
-        {
+  try {
+    const { menu, jumlah, harga } = req.body;
+    const restaurant_id = req.params.id;
+    const customer_id = req.user.customer_id; // Pastikan middleware JWT-mu mengemas ini dengan benar
 
-        }
-        res.json({ message: "Item added to cart successfully" }).status(200)
-    } catch (error) {
-        res.status(500).json({ error: error.message })
-    }
+    const total_harga = jumlah * harga;
+    const status = "Pending";
+
+    // LANGKAH 1: Masukkan data induk ke tabel 'orders'
+    // Kolom disesuaikan dengan phpMyAdmin: customer_id, restaurant_id, total_bayar, status
+    const [orderResult] = await db.query(
+      "INSERT INTO orders (customer_id, restaurant_id, total_bayar, status) VALUES (?, ?, ?, ?)",
+      [customer_id, restaurant_id, total_harga, status]
+    );
+
+    // Ambil order_id yang baru saja dibuat (tergantung library driver DB yang kamu pakai, biasanya insertId)
+    const insertOrderId = orderResult.insertId; 
+
+    // LANGKAH 2: Masukkan detail item ke tabel 'order_items'
+    // Kolom disesuaikan dengan phpMyAdmin: order_id, menu_id, jumlah, subtotal
+    await db.query(
+      "INSERT INTO order_items (order_id, menu_id, jumlah, subtotal) VALUES (?, ?, ?, ?)",
+      [insertOrderId, menu, jumlah, total_harga]
+    );
+
+    res.status(200).json({ 
+      message: "Item added to cart and order created successfully",
+      orderId: insertOrderId 
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
-web.get("/cart/:idUser", async (req, res) => {
+web.get("/cart", authorizationToken,async (req, res) => {
     try {
-        const { idUser } = req.params
+        const idUser = req.user.customer_id;
         const [orderedcart_items] = await db.query("SELECT * FROM orders WHERE customer_id = ? AND status = 'Pending'", [idUser])
-        orderedcart_items.forEach(item => {
-            delete item.order_id
-            delete item.customer_id
-            delete item.restaurant_id
-            delete item.menu_id
-        })
+        const [itemDetails] = await db.query("SELECT * FROM order_items WHERE order_id IN (?)", [orderedcart_items.map(item => item.order_id)])
         res.json(orderedcart_items)
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
 });
-web.post("/:idUser/cart", async (req, res) => {
+web.post("/cart", authorizationToken, async (req, res) => {
     try {
-        const { idUser } = req.params
+        const idUser = req.user.customer_id;
         const { order_id } = req.body
         await db.query("UPDATE orders SET status = 'Dalam Proses' WHERE order_id = ? AND customer_id = ?", [order_id, idUser])
         res.json({ message: "Order confirmed successfully" }).status(200)
@@ -165,24 +200,28 @@ web.post("/:idUser/cart", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-web.get("/:idUser/dashboard", async (req, res) => {
+web.get("/dashboard", authorizationToken, async (req, res) => {
     try {
-        const { idUser } = req.params
+        const idUser = req.user.customer_id;
         const [rewards] = await db.query("SELECT * FROM rewards WHERE stok > 0")
         const [profile] = await db.query("SELECT * FROM customer WHERE customer_id = ?", [idUser])
         const [history] = await db.query('SELECT * FROM orders WHERE customer_id = ? ORDER BY tanggal_pesanan DESC LIMIT 5', [idUser])
-        delete profile[0].customer_id
-        delete profile[0].password
-        rewards.forEach(reward => {
-            delete reward.reward_id
-        })
-        history.forEach(order => {
-            delete order.order_id
-            delete order.customer_id
-            delete order.restaurant_id
-            delete order.driver_id
-        });
         res.json({ profile: profile[0], rewards: rewards, history: history })
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+});
+web.post("/dashboard", authorizationToken, async (req, res) => {
+    try {
+        const idUser = req.user.customer_id;
+        const { reward_id } = req.body
+        const [reward] = await db.query("SELECT * FROM rewards WHERE reward_id = ?", [reward_id])
+        if (reward.length === 0 || reward[0].stok <= 0) {
+            return res.status(404).json({ error: "Reward not found or out of stock" })
+        }
+        await db.query("INSERT INTO redemptions (customer_id, reward_id) VALUES (?, ?)", [idUser, reward_id])
+        await db.query("UPDATE rewards SET stok = stok - 1 WHERE reward_id = ?", [reward_id])
+        res.json({ message: "Reward redeemed successfully" }).status(200)
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
