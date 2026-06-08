@@ -148,23 +148,15 @@ web.post("/restaurant/:id", authorizationToken, async (req, res) => {
   try {
     const { menu, jumlah, harga } = req.body;
     const restaurant_id = req.params.id;
-    const customer_id = req.user.customer_id; // Pastikan middleware JWT-mu mengemas ini dengan benar
+    const customer_id = req.user.customer_id; 
 
     const total_harga = jumlah * harga;
     const status = "Pending";
-
-    // LANGKAH 1: Masukkan data induk ke tabel 'orders'
-    // Kolom disesuaikan dengan phpMyAdmin: customer_id, restaurant_id, total_bayar, status
     const [orderResult] = await db.query(
       "INSERT INTO orders (customer_id, restaurant_id, total_bayar, status) VALUES (?, ?, ?, ?)",
       [customer_id, restaurant_id, total_harga, status]
     );
-
-    // Ambil order_id yang baru saja dibuat (tergantung library driver DB yang kamu pakai, biasanya insertId)
     const insertOrderId = orderResult.insertId; 
-
-    // LANGKAH 2: Masukkan detail item ke tabel 'order_items'
-    // Kolom disesuaikan dengan phpMyAdmin: order_id, menu_id, jumlah, subtotal
     await db.query(
       "INSERT INTO order_items (order_id, menu_id, jumlah, subtotal) VALUES (?, ?, ?, ?)",
       [insertOrderId, menu, jumlah, total_harga]
