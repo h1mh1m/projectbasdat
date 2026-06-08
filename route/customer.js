@@ -1,12 +1,14 @@
 import express from "express";
 import makankuy from "../DB/db.js";
 import jwt from "jsonwebtoken";
-import { is } from "zod/locales";
+import cors from "cors";
+// letakkan sebelum route:
+
 
 const web = express.Router()
 const db = makankuy.db;
 web.use(express.json());
-
+web.use(cors());
 web.post("/signup", async (req, res) => {
     try {
         const {nama, email, password,nomor} = req.body
@@ -23,8 +25,7 @@ web.post("/signup", async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-// web.get("/signup", async (req, res) => {});
-// web.get("/login", async (req, res) => {});
+
 web.post("/login",async (req, res) =>{
     try {
         const { email, password } = req.body
@@ -57,7 +58,7 @@ function authorizationToken(req, res, next) {
 }
 web.get("/", async (req, res) => {
     try {
-        const {restoranResult} = await db.query("SELECT * FROM restaurant")
+        const [restoranResult] = await db.query("SELECT * FROM restaurant")
         res.json({
             message: "Welcome to the customer dashboard",
             restoran: restoranResult
@@ -67,25 +68,8 @@ web.get("/", async (req, res) => {
     }
 });
 
-// web.post("/", async (req, res) => {
-//     try {
-//         const { restoranId } = req.body
-//         const [resultRestoran] = await db.query("SELECT * FROM restaurants WHERE restaurant_id = ?",[restoranId])
-//         delete resultRestoran[0].admin_id
-//         const [resultMenu] = await db.query("SELECT * FROM menus WHERE nama_restoran= ? OR kategori = ?", [restoranId])
-//         resultMenu.forEach(menu=>{
-//             delete resultMenu.admin_id
-//             delete resultMenu.restaurant_id
-//             delete resultMenu.stok
-//         })
-//         res.json(result).status(200)
-//     } catch (error) {
-//         res.status(500).json({ error: error.message })
-//     }
-// });
 web.get("/restaurant", authorizationToken, async (req, res)=> {
     try {
-        if(isLoggedIn){
         const {categori} = req.query
         let querySql = "SELECT * FROM restaurant"
         let queryParams = []
@@ -94,7 +78,7 @@ web.get("/restaurant", authorizationToken, async (req, res)=> {
             queryParams.push(categori)
         } 
         const [restaurants] = await db.query(querySql, queryParams)
-        res.json(restaurants)}
+        res.json(restaurants)
 
     } catch (error) {
         res.status(500).json({ error: error.message })
@@ -125,25 +109,7 @@ web.get("/restaurant/:id", authorizationToken, async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 });
-// web.post("/restaurant/:id", authorizationToken, async (req, res) => {
-//     try {
-//         const {menu, jumlah, harga} = req.body
-//         let total_harga = jumlah * harga
-//         const itemToOrders = 
-//         {
-//             customer_id: req.user.customer_id,
-//             restaurant_id: req.params.id,
-//             menu_id: menu,
-//             jumlah: jumlah,
-//             total_harga: total_harga,
-//             status: "Pending"
-//         }
-//         await db.query("INSERT INTO orders (customer_id, restaurant_id, menu_id, order_item.jumlah, total_harga, status) VALUES (?, ?, ?, ?, ?, ?)", [itemToOrders.customer_id, itemToOrders.restaurant_id, itemToOrders.menu_id, itemToOrders.jumlah, itemToOrders.total_harga, itemToOrders.status])
-//         res.json({ message: "Item added to cart successfully" }).status(200)
-//     } catch (error) {
-//         res.status(500).json({ error: error.message })
-//     }
-// });
+
 web.post("/restaurant/:id", authorizationToken, async (req, res) => {
   try {
     const { menu, jumlah, harga } = req.body;
