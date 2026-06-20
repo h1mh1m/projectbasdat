@@ -33,7 +33,7 @@ Berikut adalah urutan fungsionalitas aplikasi berdasarkan tangkapan layar yang t
 
 | 1. Halaman Utama / Dashboard | 2. Form Input & Validasi | 3. Tabel & Detail Data |
 | :---: | :---: | :---: |
-| ![Dashboard](./img/1.jpg) | ![Form Input](./img/2.png) | ![Detail Data](./img/3.jpg) |
+| ![Dashboard](./img/1.png) | ![Form Input](./img/2.png) | ![Detail Data](./img/3.png) |
 | Menampilkan ringkasan informasi data secara keseluruhan saat pertama kali diakses. | Tempat pengguna memasukkan data baru dengan validasi input di sisi klien. | Menampilkan list data secara terstruktur dengan opsi aksi. |
 
 | 4. Fitur Modifikasi (Edit/Update) | 5. Manajemen Status / Laporan |
